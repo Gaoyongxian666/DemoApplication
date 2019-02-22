@@ -27,11 +27,12 @@ public class Json_config {
     private static final List<Integer> Length=new ArrayList<Integer>();
     private static final List<Integer> ID=new ArrayList<Integer>();
     private static String text;
+    private static BufferedReader read;
 
 
     public Json_config() throws IOException, JSONException {
         InputStreamReader isr = new InputStreamReader(new FileInputStream("/sdcard/dengdai//setting.json"), "utf8");
-        BufferedReader read = new BufferedReader(isr);
+        read = new BufferedReader(isr);
         String s=read.readLine();
         JSONObject jsonObject = new JSONObject(s);
         Log.e("ee", String.valueOf(jsonObject));
@@ -40,6 +41,8 @@ public class Json_config {
         this.columns_number = jsonObject.getInt("columns_number");
         JSONArray img_list = (JSONArray) jsonObject.get("img_list");
         this.background = jsonObject.getString("background");
+        this.ip = jsonObject.getString("comserverip");
+        this.port = jsonObject.getString("comserverport");
 
         for (int i = 0; i< img_list.length(); i++) {
             //循环遍历，依次取出JSONObject对象
@@ -54,12 +57,12 @@ public class Json_config {
             this.IMGurl.add("/sdcard/dengdai/"+img_path);
             this.Length.add(time*1000);
             this.ID.add(id);
-
-            this.ip = jsonObject.getString("comserverip");
-            this.port = jsonObject.getString("comserverport");
         }
         isr.close();
         read.close();
+
+
+
     }
 
     public static Integer getColumns_number() {

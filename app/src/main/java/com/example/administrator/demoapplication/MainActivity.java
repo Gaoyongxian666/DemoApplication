@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityOptions;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -50,12 +51,21 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 
+
+import cn.hotapk.fastandr_dbms.FConfigController;
+import cn.hotapk.fastandr_dbms.FConfigManager;
 
 import static android.widget.Toast.LENGTH_SHORT;
 
@@ -85,6 +95,7 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
     private static Thread last_close=null;
     private volatile static int FLAG=1;
     private volatile static int APP_FLAG=0;
+    private volatile static int FileReady=0;
 
 
 
@@ -128,12 +139,13 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
 
 
 
-    private void requestPermissionList() throws IOException, JSONException {
+    private void requestPermissionList() throws Exception {
+        FConfigManager.init(this).startServer();
         String[] permissions = new String[]{
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.READ_CONTACTS
+                Manifest.permission.READ_CONTACTS,
         };
         // 声明一个集合，在后面的代码中用来存储用户拒绝授权的权
         List<String> mPermissionList = new ArrayList<>();
@@ -176,84 +188,90 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
         attr=findViewById(R.id.attr);
         try {
             requestPermissionList();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (JSONException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private void initjson() throws IOException, JSONException {
-        Json_config json_config=new Json_config();
-        title=json_config.getTitle();
-        background=json_config.getBackground();
-        columns_number=json_config.getColumns_number();
-        ip=json_config.getIp();
-        port=json_config.getPort();
-        TITLE =json_config.getTITLE();
-        IMGurl = json_config.getIMGurl();
-        Length=json_config.getLength();
-        ID=json_config.getID();
-        text=json_config.getText();
+        try{
+            Json_config json_config=new Json_config();
+            title=json_config.getTitle();
+            background=json_config.getBackground();
+            columns_number=json_config.getColumns_number();
+            ip=json_config.getIp();
+            port=json_config.getPort();
+            TITLE =json_config.getTITLE();
+            IMGurl = json_config.getIMGurl();
+            Length=json_config.getLength();
+            ID=json_config.getID();
+            text=json_config.getText();
+            Log.e("FileNotFoundException","文件读取完成");
+            FileReady=1;
 
+        }catch (FileNotFoundException e){
+            Log.e("FileNotFoundException","文件未创建");
+            FileReady=0;
+            showDialog();
 
+        }
 
     }
 
     private void initsocket(){
-        new Thread() {
-            @Override
-            public void run() {
-                try {
-                    socketClient = new SocketClient(MainActivity.this,ip,port);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                closeall();
-                Message msg = new Message();
-                msg.what = 3;
-                Bundle bundle = new Bundle();
-                bundle.putString("zhuangtai","当前连接状态：正 常      ");  //往Bundle中存放数据
-                bundle.putInt("APP_FLAG",1);  //往Bundle中存放数据
+        if (FileReady==1) {
+            new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        socketClient = new SocketClient(MainActivity.this, ip, port);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    closeall();
+                    Message msg = new Message();
+                    msg.what = 3;
+                    Bundle bundle = new Bundle();
+                    bundle.putString("zhuangtai", "当前连接状态：正 常      ");  //往Bundle中存放数据
+                    bundle.putInt("APP_FLAG", 1);  //往Bundle中存放数据
 
 //                    bundle.putString("text2","Time：2016-11-03");  //往Bundle中put数据
-                msg.setData(bundle);//mes利用Bundle传递数据
-                MainActivity.handler.sendMessage(msg);//用activity中的handler发送消息
+                    msg.setData(bundle);//mes利用Bundle传递数据
+                    MainActivity.handler.sendMessage(msg);//用activity中的handler发送消息
 
-                Log.e("dd", "socketClient = new SocketClient完成");
-                final Thread currentThread = Thread.currentThread();
-                final String oldName = currentThread.getName();
-                currentThread.setName("lastReceiveTime");
-                while (true) {
-                    try {
-
-//                        Log.e("WWWWWWWW", String.valueOf(lastReceiveTime));
-                        long curr = str1;
-                        Thread.sleep(7000);
-                        if (curr == str1) {
+                    Log.e("dd", "socketClient = new SocketClient完成");
+                    final Thread currentThread = Thread.currentThread();
+                    final String oldName = currentThread.getName();
+                    currentThread.setName("lastReceiveTime");
+                    while (true) {
+                        try {
+                            long curr = str1;
+                            Thread.sleep(7000);
+                            if (curr == str1) {
 //                            Message msg = new Message();
 //                            msg.what = 2;
 //                            Bundle bundle = new Bundle();
 //                            bundle.putString("zhuangtai","当前连接状态：断 开      ");  //往Bundle中存放数据
 //                            msg.setData(bundle);//mes利用Bundle传递数据
 //                            MainActivity.handler.sendMessage(msg);//用activity中的handler发送消息
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, "连接已断开", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            Log.e("ddd", "用户掉线了。。。。");
-                            socketClient.stopSocket();
-                        } else {
-                            Log.e("ddd", "用户连接正常。。。。");
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(MainActivity.this, "连接已断开", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                                Log.e("ddd", "用户掉线了。。。。");
+                                socketClient.stopSocket();
+                            } else {
+                                Log.e("ddd", "用户连接正常。。。。");
+                            }
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
                         }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
                     }
                 }
-            }
-        }.start();
+            }.start();
+        }
     }
 
 
@@ -293,48 +311,50 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
     }
 
     private void click() throws InterruptedException {
-        Log.e("dd","点击事件开启");
-        //APP_FLAG 代表 socketclient对象 是否建立成功
-        //FLAG 代表 socket 是否连接成功
-        homeAdapter.setOnItemClickListener(new BaseQuickAdapter.OnItemClickListener() {
-            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-            @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
-            @Override
-            public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
-                if (APP_FLAG!=1){
-                    Toast.makeText(MainActivity.this, "匹配连接中", LENGTH_SHORT).show();
-                    TTSUtility.getInstance(getApplicationContext()).speaking("匹配连接中");
-                }else{
-                    if (FLAG!=1){
-                        TTSUtility.getInstance(getApplicationContext()).speaking("当前连接中断");
-                        Toast.makeText(MainActivity.this, "当前连接中断", LENGTH_SHORT).show();
+        if (FileReady==1) {
+            Log.e("dd", "点击事件开启");
+            //APP_FLAG 代表 socketclient对象 是否建立成功
+            //FLAG 代表 socket 是否连接成功
+            homeAdapter.setOnItemClickListener(new BaseQuickAdapter.OnItemClickListener() {
+                @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+                @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
+                @Override
+                public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
+                    if (APP_FLAG != 1) {
+                        Toast.makeText(MainActivity.this, "匹配连接中", LENGTH_SHORT).show();
+                        TTSUtility.getInstance(getApplicationContext()).speaking("匹配连接中");
                     } else {
-                        TTSUtility.getInstance(getApplicationContext()).speaking(text);
+                        if (FLAG != 1) {
+                            TTSUtility.getInstance(getApplicationContext()).speaking("当前连接中断");
+                            Toast.makeText(MainActivity.this, "当前连接中断", LENGTH_SHORT).show();
+                        } else {
+                            TTSUtility.getInstance(getApplicationContext()).speaking(text);
 
-                        Toast.makeText(MainActivity.this, "点击了第" + (position + 1) + "条目", LENGTH_SHORT).show();
-                        HomeItem item = (HomeItem) adapter.getItem(position);
+                            Toast.makeText(MainActivity.this, "点击了第" + (position + 1) + "条目", LENGTH_SHORT).show();
+                            HomeItem item = (HomeItem) adapter.getItem(position);
 
-                        closeall();
-                        send(position);
-                    }
+                            closeall();
+                            send(position);
+                        }
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        Intent intent=new Intent(view.getContext(), OtherActivity.class);
-                        Bundle bundle=new Bundle();
-                        bundle.putString("text",text);
-                        bundle.putString("background",background);
-                        bundle.putString("IMGurl",IMGurl.get(position));
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            Intent intent = new Intent(view.getContext(), OtherActivity.class);
+                            Bundle bundle = new Bundle();
+                            bundle.putString("text", text);
+                            bundle.putString("background", background);
+                            bundle.putString("IMGurl", IMGurl.get(position));
 
-                        intent.putExtras(bundle);
-                        view.getContext().startActivity(
-                                intent,
-                                // 注意这里的sharedView
-                                // Content，View（动画作用view），String（和XML一样）
-                                ActivityOptions.makeSceneTransitionAnimation((Activity) view.getContext(), view, "sharedView").toBundle());
+                            intent.putExtras(bundle);
+                            view.getContext().startActivity(
+                                    intent,
+                                    // 注意这里的sharedView
+                                    // Content，View（动画作用view），String（和XML一样）
+                                    ActivityOptions.makeSceneTransitionAnimation((Activity) view.getContext(), view, "sharedView").toBundle());
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     private void closeall() {
@@ -350,25 +370,27 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
 
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void initView() {
-        //设置recycleview的空隙，以及个数，布局方向
-        mRecyclerView = (RecyclerView) findViewById(R.id.rv_list);
-        GridLayoutManager ms= new GridLayoutManager(this,columns_number);
-        ms.setOrientation(GridLayoutManager.VERTICAL);
-        mRecyclerView.setLayoutManager(ms);
-        int spanCount = columns_number; // 3 columns
-        int spacing = 40; // 50px
-        boolean includeEdge = true;
-        mRecyclerView.addItemDecoration(new GridSpacingItemDecoration(spanCount, spacing, includeEdge));
+        if (FileReady==1) {
+            //设置recycleview的空隙，以及个数，布局方向
+            mRecyclerView = (RecyclerView) findViewById(R.id.rv_list);
+            GridLayoutManager ms = new GridLayoutManager(this, columns_number);
+            ms.setOrientation(GridLayoutManager.VERTICAL);
+            mRecyclerView.setLayoutManager(ms);
+            int spanCount = columns_number; // 3 columns
+            int spacing = 40; // 50px
+            boolean includeEdge = true;
+            mRecyclerView.addItemDecoration(new GridSpacingItemDecoration(spanCount, spacing, includeEdge));
 
-        // 设置背景图片，标题
-        @SuppressLint("SdCardPath") Bitmap bitmap = BitmapFactory.decodeFile("/sdcard/dengdai/"+background);
-        Resources resources = getResources();
-        BitmapDrawable drawable = new BitmapDrawable(resources,
-                bitmap);
-        LinearLayout linearLayout=findViewById(R.id.main);
-        linearLayout.setBackground(drawable);
-        textView=findViewById(R.id.title);
-        textView.setText(title);
+            // 设置背景图片，标题
+            @SuppressLint("SdCardPath") Bitmap bitmap = BitmapFactory.decodeFile("/sdcard/dengdai/" + background);
+            Resources resources = getResources();
+            BitmapDrawable drawable = new BitmapDrawable(resources,
+                    bitmap);
+            LinearLayout linearLayout = findViewById(R.id.main);
+            linearLayout.setBackground(drawable);
+            textView = findViewById(R.id.title);
+            textView.setText(title);
+        }
     }
 
 
@@ -401,25 +423,30 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
                     e.printStackTrace();
                 }
             }else{
-                Log.e("dd","//用户不同意，向用户展示该权限作用\n");
-                finish();
+                Log.e("dd","用户权限没有授予完\n");
+                showWaringDialog();
+
             }
         }
     }
 
     private void initAdapter() {
-        homeAdapter = new HomeAdapter(R.layout.home_item_view, mDataList);
-        homeAdapter.openLoadAnimation();
-        mRecyclerView.setAdapter(homeAdapter);
+        if (FileReady==1) {
+            homeAdapter = new HomeAdapter(R.layout.home_item_view, mDataList);
+            homeAdapter.openLoadAnimation();
+            mRecyclerView.setAdapter(homeAdapter);
+        }
     }
 
     private void initData() {
-        for (int i = 0; i < IMGurl.size(); i++) {
-            HomeItem item = new HomeItem();
-            item.setimageUrl(IMGurl.get(i));
-            mDataList.add(item);
+        if (FileReady==1) {
+            for (int i = 0; i < IMGurl.size(); i++) {
+                HomeItem item = new HomeItem();
+                item.setimageUrl(IMGurl.get(i));
+                mDataList.add(item);
+            }
+            homeAdapter.notifyDataSetChanged();
         }
-        homeAdapter.notifyDataSetChanged();
 
     }
 
@@ -439,6 +466,7 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
         return bytes;
     }
 
+
     @Override
     public void onSocketConnect() {
 
@@ -454,9 +482,64 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
 
     }
 
+    public static String getIP(Context context){
+
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+                NetworkInterface intf = en.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();)
+                {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && (inetAddress instanceof Inet4Address))
+                    {
+                        return inetAddress.getHostAddress().toString();
+                    }
+                }
+            }
+        }
+        catch (SocketException ex){
+            ex.printStackTrace();
+        }
+        return null;
+    }
+    private void showWaringDialog() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("警告！")
+                .setMessage("请前往设置->应用->权限中打开相关权限，否则功能无法正常运行！")
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        finish();
+                    }
+                }).show();
+    }
+    private void showDialog() {
+        String ip=getIP(this);
+        if (ip==null){
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle("警告！")
+                    .setMessage("文件没有准备完成，请准备文件\n点击确认，退出app")
+                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
+                    }).show();
+        }else {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle("警告！")
+                    .setMessage("文件没有准备完成，请保持app开启，在浏览器输入"+ip+":8888"+"配置文件\n配置完成，点击确认，退出app")
+                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
+                    }).show();
+        }
+    }
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (APP_FLAG==1) {
+        if (APP_FLAG==1&&FileReady==1) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 closeall();
             }
@@ -471,8 +554,13 @@ public class MainActivity extends AppCompatActivity implements SocketClientRespo
                 }
             }
         }else {
-            Toast.makeText(MainActivity.this, "程序正在初始化", LENGTH_SHORT).show();
-            return true;
+            if (FileReady==0){
+                showDialog();
+                return true;
+            } else {
+                Toast.makeText(MainActivity.this, "程序正在初始化", LENGTH_SHORT).show();
+                return true;
+            }
         }
 
         return super.onKeyUp(keyCode, event);
